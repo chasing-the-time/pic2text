@@ -5,7 +5,9 @@ import os
 import PyQt5.QtWidgets
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QMimeData, QTimer
+from PyQt5 import QtCore
 
+#push 测试
 
 class TextRecognitionDialog(PyQt5.QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -353,7 +355,6 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
 
 
 
-from PyQt5 import QtCore  # 补充导入
 
 if __name__ == "__main__":
     app = PyQt5.QtWidgets.QApplication(sys.argv)
