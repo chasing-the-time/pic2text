@@ -1,13 +1,12 @@
 import sys
 import cv2
 import numpy as np
-import os
+import tempfile
+import traceback
 import PyQt5.QtWidgets
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage, QPainter
-from PyQt5.QtCore import Qt, QMimeData, QTimer
-from PyQt5 import QtCore
-
-#push 测试
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage
+from PyQt5.QtCore import Qt, QTimer
+import os
 
 class TextRecognitionDialog(PyQt5.QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -81,6 +80,10 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
         self.resize(800, 600)
         self.current_pixmap = None  # 保存当前显示的图片
         self.original_pixmap = None  # 保存原始图片，用于处理后恢复
+        self.current_image_path = None  # 当前图片的文件路径（如果有）
+
+        # PaddleOCR 实例（懒加载）
+        self.ocr = None
 
         # 添加导出PDF的动作到导出菜单
         self.init_ui()
@@ -212,6 +215,7 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
             # 转换为QPixmap并显示（自动适应标签大小）
             self.current_pixmap = QPixmap.fromImage(q_img)
             self.original_pixmap = self.current_pixmap.copy()  # 保存原始图片
+            self.current_image_path = file_path
             self.update_image_display()
 
             # 重置标签样式
@@ -247,10 +251,81 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
         super().resizeEvent(event)
 
     def open_ocr_dialog(self):
-        dialog = TextRecognitionDialog(self)
-        mock_text = "这里显示识别文字"
-        dialog.set_recognized_text(mock_text)
-        dialog.exec_()
+        if not self.current_pixmap:
+            PyQt5.QtWidgets.QMessageBox.information(self, "提示", "请先加载图片")
+            return
+
+        # 准备界面提示（防止界面卡住）
+        self.ocr_btn.setEnabled(False)
+        old_text = self.ocr_btn.text()
+        self.ocr_btn.setText("识别中...")
+        PyQt5.QtWidgets.QApplication.processEvents()
+
+        # 获取需要识别的图片路径；如果没有原始路径则把当前pixmap保存到临时文件
+        image_path = self.current_image_path
+        temp_file = None
+        try:
+            if image_path is None:
+                # 保存到临时文件
+                temp_fd, temp_path = tempfile.mkstemp(suffix='.png')
+                os.close(temp_fd)
+                self.current_pixmap.save(temp_path)
+                image_path = temp_path
+                temp_file = temp_path
+
+            # 执行识别（可能耗时）
+            recognized_text = self.perform_ocr(image_path)
+
+            dialog = TextRecognitionDialog(self)
+            dialog.set_recognized_text(recognized_text)
+            dialog.exec_()
+
+        except Exception as e:
+            traceback.print_exc()
+            PyQt5.QtWidgets.QMessageBox.warning(self, "识别错误", f"OCR 识别出错:\n{str(e)}")
+
+        finally:
+            # 清理临时文件
+            if temp_file and os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except Exception:
+                    pass
+            # 恢复按钮状态
+            self.ocr_btn.setEnabled(True)
+            self.ocr_btn.setText(old_text)
+
+    def perform_ocr(self, image_path: str) -> str:
+        """PaddleOCR Pipeline 版本识别（predict 输出解析）"""
+        try:
+            from paddleocr import PaddleOCR
+        except Exception:
+            raise RuntimeError(
+                "未检测到 paddleocr，请先安装：\n"
+                "pip install paddleocr\n"
+                "若报错请先安装 paddlepaddle。"
+            )
+
+        if self.ocr is None:
+            self.ocr = PaddleOCR(
+                use_textline_orientation=True,
+                lang='ch',
+                text_detection_model_dir=r"D:\DeskTop\软著\panddle_modles\det",
+                text_recognition_model_dir=r"D:\DeskTop\软著\panddle_modles\rec",
+                textline_orientation_model_dir=r"D:\DeskTop\软著\panddle_modles\cls"
+            )
+
+        results = self.ocr.predict(image_path)
+        lines = []
+        if results and isinstance(results, list):
+            res = results[0]  # 这里只有一个图片
+            rec_texts = res.get("rec_texts", [])
+            for text in rec_texts:
+                lines.append(text)
+
+        if not lines:
+            return "未识别到文字"
+        return "\n".join(lines)
 
     def process_grayscale(self):
         """灰度处理功能实现"""
@@ -279,8 +354,6 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
         self.current_pixmap = QPixmap.fromImage(q_img)
         self.update_image_display()
 
-
-
     def process_bw(self):
         """黑白处理功能实现"""
         if not self.current_pixmap:
@@ -308,8 +381,6 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
         q_img = QImage(bw_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.current_pixmap = QPixmap.fromImage(q_img)
         self.update_image_display()
-
-
 
     def export_jpg(self):
         """导出为JPG格式功能实现"""
@@ -352,7 +423,6 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
                 PyQt5.QtWidgets.QMessageBox.information(self, "成功", f"图片已导出至:\n{file_path}")
             else:
                 PyQt5.QtWidgets.QMessageBox.warning(self, "失败", "无法保存图片，请重试")
-
 
 
 
