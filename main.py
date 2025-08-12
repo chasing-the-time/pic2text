@@ -305,20 +305,17 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
                 "pip install paddleocr\n"
                 "若报错请先安装 paddlepaddle。"
             )
-
+        # 创建模型（只创建一次） ， 目前还没有实现使用本地模型
         if self.ocr is None:
             self.ocr = PaddleOCR(
                 use_textline_orientation=True,
-                lang='ch',
-                text_detection_model_dir=r"D:\DeskTop\软著\panddle_modles\det",
-                text_recognition_model_dir=r"D:\DeskTop\软著\panddle_modles\rec",
-                textline_orientation_model_dir=r"D:\DeskTop\软著\panddle_modles\cls"
+                lang='ch'
             )
 
         results = self.ocr.predict(image_path)
         lines = []
         if results and isinstance(results, list):
-            res = results[0]  # 这里只有一个图片
+            res = results[0]
             rec_texts = res.get("rec_texts", [])
             for text in rec_texts:
                 lines.append(text)
