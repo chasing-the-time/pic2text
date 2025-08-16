@@ -7,6 +7,7 @@ import PyQt5.QtWidgets
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage
 from PyQt5.QtCore import Qt, QTimer
 import os
+from paddleocr import PaddleOCR
 
 class TextRecognitionDialog(PyQt5.QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -297,19 +298,22 @@ class MainWindow(PyQt5.QtWidgets.QMainWindow):
 
     def perform_ocr(self, image_path: str) -> str:
         """PaddleOCR Pipeline 版本识别（predict 输出解析）"""
-        try:
-            from paddleocr import PaddleOCR
-        except Exception:
-            raise RuntimeError(
-                "未检测到 paddleocr，请先安装：\n"
-                "pip install paddleocr\n"
-                "若报错请先安装 paddlepaddle。"
-            )
         # 创建模型（只创建一次） ， 目前还没有实现使用本地模型
         if self.ocr is None:
             self.ocr = PaddleOCR(
                 use_textline_orientation=True,
-                lang='ch'
+                lang='ch',
+                ocr_version="PP-OCRv5",
+                doc_orientation_classify_model_name="PP-LCNet_x1_0_doc_ori",
+                doc_orientation_classify_model_dir="modles/PP-LCNet_x1_0_doc_ori_infer",
+                doc_unwarping_model_name="UVDoc",
+                doc_unwarping_model_dir="modles/UVDoc",
+                textline_orientation_model_name="PP-LCNet_x0_25_textline_ori",
+                textline_orientation_model_dir="modles/PP-LCNet_x0_25_textline_ori_infer",
+                text_recognition_model_name="PP-OCRv5_server_rec",
+                text_recognition_model_dir="modles/PP-OCRv5_server_rec_infer",
+                text_detection_model_name="PP-OCRv5_server_det",
+                text_detection_model_dir="modles/PP-OCRv5_server_det_infer"
             )
 
         results = self.ocr.predict(image_path)
